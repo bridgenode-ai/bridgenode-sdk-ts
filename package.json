@@ -1,23 +1,25 @@
 {
   "name": "@bridgenode/llm",
-  "version": "0.2.12",
+  "version": "1.0.0",
   "description": "BridgeNode LLM client \u2014 AI inference for AI agents with x402 payment on Solana USDC. No API keys, no registration.",
   "type": "module",
-  "main": "./dist/index.js",
+  "main": "./dist/index.cjs",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
       "default": "./dist/index.js"
     }
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "skills"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean",
     "test": "node --test --test-isolation=none --test-concurrency=1 --import tsx tests/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
@@ -55,6 +57,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
+    "tsup": "^8.5.1",
     "tsx": "^4.20.0",
     "typescript": "^5.7.0"
   },
@@ -64,5 +67,17 @@
   "author": "BridgeNode <eli.BNx@proton.me>",
   "bugs": {
     "url": "https://github.com/applefanaimail-blip/bridgenode-sdk-ts/issues"
+  },
+  "funding": {
+    "type": "individual",
+    "url": "https://bridgenode.cc"
+  },
+  "agents": {
+    "skills": [
+      {
+        "name": "bridgenode",
+        "path": "./skills/bridgenode"
+      }
+    ]
   }
 }
