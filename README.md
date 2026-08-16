@@ -56,6 +56,14 @@ client.chat(model, messages, { maxTokens?, mode? });  // mode: "auto" | "eco" | 
 - Node ≥ 20
 - Solana wallet with USDC ATA (rent — agent's responsibility)
 
+## Python SDK
+
+Prefer Python? The same BridgeNode toolkit is on PyPI:
+
+- **Python SDK:** `pip install bridgenode-llm` → https://pypi.org/project/bridgenode-llm
+- **CLI:** `pip install bridgenode-cli` → https://pypi.org/project/bridgenode-cli
+- **Full toolkit (SDK + CLI):** `pip install bridgenode` → https://pypi.org/project/bridgenode
+
 ## Links
 
 - Website: https://bridgenode.cc
