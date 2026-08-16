@@ -1,8 +1,8 @@
 /**
  * client.test.ts — LLMClient tests.
  *
- * : automatic x402 handshake (402 → PAYMENT-SIGNATURE → 200).
- * : PAYMENT-RESPONSE receipt verification (success/network/payer/TX signature/
+ * z1: automatic x402 handshake (402 → PAYMENT-SIGNATURE → 200).
+ * z2: PAYMENT-RESPONSE receipt verification (success/network/payer/TX signature/
  * amount), spending policy (MAX_PER_CALL, DAILY_CAP — fail-closed), SIWX
  * client hook (SIGN-IN-WITH-X, fallback to payment, granted 200).
  *
@@ -243,7 +243,7 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
 });
 
-// ── Handshake () ───────────────────────────────────────────────────────────
+// ── Handshake (z1) ───────────────────────────────────────────────────────────
 
 test("chat: 402 → PAYMENT-SIGNATURE → retry → 200", async () => {
   const feeKp = await crypto.subtle.generateKey(
@@ -290,7 +290,7 @@ test("chat: maxTokens and mode are passed through", async () => {
   assert.equal(body.mode, "auto");
 });
 
-test(": string prompt → OpenAI messages (identical body as list)",
+test("Z41: string prompt → OpenAI messages (identical body as list)",
      async () => {
   const feeKp = await crypto.subtle.generateKey(
     { name: "Ed25519" }, true, ["sign", "verify"]);
@@ -333,7 +333,7 @@ test("chat: server error → BridgenodeError with message", async () => {
     });
 });
 
-// ── Receipt verification () ──────────────────────────────────────────────────
+// ── Receipt verification (z2) ──────────────────────────────────────────────────
 
 test("receipt: missing PAYMENT-RESPONSE → error (not silent)", async () => {
   const feeKp = await crypto.subtle.generateKey(
@@ -441,7 +441,7 @@ test("receipt: amount mismatch → error", async () => {
     /amount mismatch/);
 });
 
-// ── Spending policy (, fail-closed) ────────────────────────────────────────
+// ── Spending policy (z2, fail-closed) ────────────────────────────────────────
 
 test("spending: MAX_PER_CALL exceeded → blocked BEFORE signing", async () => {
   const feeKp = await crypto.subtle.generateKey(
@@ -513,7 +513,7 @@ test("spending: env overrides (BRIDGENODE_MAX_PER_CALL/DAILY_CAP)", () => {
 
 // ── Supported entry selection ────────────────────────────────────────────
 
-test(": 402 with another mint → error BEFORE signing (no TX)", async () => {
+test("Z36: 402 with another mint → error BEFORE signing (no TX)", async () => {
   const feeKp = await crypto.subtle.generateKey(
     { name: "Ed25519" }, true, ["sign", "verify"]);
   const clientKp = await makeKeypair();
@@ -532,7 +532,7 @@ test(": 402 with another mint → error BEFORE signing (no TX)", async () => {
   assert.equal(seen.filter((r) => r.url.startsWith(API_BASE)).length, 1);
 });
 
-test(": 402 with another network → error BEFORE signing (no TX)", async () => {
+test("Z36: 402 with another network → error BEFORE signing (no TX)", async () => {
   const feeKp = await crypto.subtle.generateKey(
     { name: "Ed25519" }, true, ["sign", "verify"]);
   const clientKp = await makeKeypair();
@@ -551,7 +551,7 @@ test(": 402 with another network → error BEFORE signing (no TX)", async () => 
   assert.equal(seen.filter((r) => r.url.startsWith(API_BASE)).length, 1);
 });
 
-test(": empty accepts → error BEFORE signing (no TX)", async () => {
+test("Z36: empty accepts → error BEFORE signing (no TX)", async () => {
   const feeKp = await crypto.subtle.generateKey(
     { name: "Ed25519" }, true, ["sign", "verify"]);
   const clientKp = await makeKeypair();
@@ -693,11 +693,11 @@ test("default baseUrl and timeouts", async () => {
   assert.ok(client.initialTimeoutMs >= 30_000);
   assert.ok(client.retryTimeoutMs >= 113_000);
   assert.ok(client.retryTimeoutMs <= 115_000);
-  // : total flow timeout ≥ initial + retry
+  // Z42: total flow timeout ≥ initial + retry
   assert.ok(client.flowTimeoutMs >= client.initialTimeoutMs + client.retryTimeoutMs);
 });
 
-test(": flow timeout exceeded → BridgenodeError BEFORE request", async () => {
+test("Z42: flow timeout exceeded → BridgenodeError BEFORE request", async () => {
   const feeKp = await crypto.subtle.generateKey(
     { name: "Ed25519" }, true, ["sign", "verify"]);
   const clientKp = await makeKeypair();

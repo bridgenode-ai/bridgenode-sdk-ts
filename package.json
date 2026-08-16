@@ -1,6 +1,6 @@
 {
   "name": "@bridgenode/llm",
-  "version": "0.2.11",
+  "version": "0.2.12",
   "description": "BridgeNode LLM client \u2014 AI inference for AI agents with x402 payment on Solana USDC. No API keys, no registration.",
   "type": "module",
   "main": "./dist/index.js",
@@ -47,10 +47,10 @@
     "typescript"
   ],
   "dependencies": {
-    "@solana/kit": "^5.5.1",
-    "@x402/core": "~2.21.0",
-    "@x402/extensions": "^2.21.0",
-    "@x402/svm": "~2.21.0",
+    "@solana/kit": "^7.1.0",
+    "@x402/core": "~2.22.0",
+    "@x402/extensions": "^2.22.0",
+    "@x402/svm": "~2.22.0",
     "dotenv": "^17.0.0"
   },
   "devDependencies": {
@@ -61,5 +61,8 @@
   "engines": {
     "node": ">=20"
   },
-  "author": "BridgeNode <eli.BNx@proton.me>"
+  "author": "BridgeNode <eli.BNx@proton.me>",
+  "bugs": {
+    "url": "https://github.com/applefanaimail-blip/bridgenode-sdk-ts/issues"
+  }
 }
