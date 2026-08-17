@@ -4,6 +4,7 @@
 [![npm downloads](https://img.shields.io/npm/dm/@bridgenode/llm.svg)](https://www.npmjs.com/package/@bridgenode/llm)
 [![License: MIT-0](https://img.shields.io/badge/License-MIT--0-yellow.svg)](https://opensource.org/license/mit-0/)
 [![Website](https://img.shields.io/badge/Website-bridgenode.cc-blue)](https://bridgenode.cc)
+[![BridgeNode on x402-list](https://x402-list.com/badge/bridgenode.svg)](https://x402-list.com/services/bridgenode?utm_source=badge&utm_medium=referral&utm_campaign=embed)
 
 **Built for AI agents** — no API keys, no registration, pay-as-you-go with Solana USDC via x402.
 
