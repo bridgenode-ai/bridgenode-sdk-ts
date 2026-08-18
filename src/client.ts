@@ -74,6 +74,7 @@ export class BridgenodeError extends Error {
 export interface ChatOptions {
   maxTokens?: number;
   mode?: "auto" | "eco" | "premium";
+  stream?: boolean;  // R17/Ž17: SSE stream (§5.5) — returns AsyncGenerator of chunks
 }
 
 export interface LLMClientOptions {
@@ -196,8 +197,8 @@ export class LLMClient {
 
   // ── API ────────────────────────────────────────────────────────────────
 
-  async chat(model: string, messages: string | Array<Record<string, unknown>>,
-             options: ChatOptions = {}): Promise<Record<string, unknown>> {
+  async chat(model: string | null, messages: string | Array<Record<string, unknown>>,
+             options: ChatOptions = {}): Promise<Record<string, unknown> | AsyncGenerator<Record<string, unknown>, void, unknown>> {
     await this._ensureInit();
     // string prompt → OpenAI messages format
     // (client side; the server still receives an OpenAI body)
@@ -206,9 +207,14 @@ export class LLMClient {
         ? [{ role: "user", content: messages }]
         : messages;
     const url = `${this.baseUrl}/chat/completions`;
-    const body: Record<string, unknown> = { model, messages: normalizedMessages };
+    // item 25 (§5.1): `model` omitted when null — body without `model: null`
+    // (when sending only `mode` for smart routing, the server would get
+    // JSON null → possible 400; Python SDK does the same)
+    const body: Record<string, unknown> = { messages: normalizedMessages };
+    if (model !== null && model !== undefined) body["model"] = model;
     if (options.maxTokens !== undefined) body["max_tokens"] = options.maxTokens;
     if (options.mode !== undefined) body["mode"] = options.mode;
+    if (options.stream) body["stream"] = true;  // R17/Ž17 (§5.5)
     const json = JSON.stringify(body);
 
     // Total flow timeout — the whole handshake (initial + SIWX +
@@ -298,12 +304,56 @@ export class LLMClient {
     // step 2: receipt verification after 200 (error, not silence — Free-Riding
     // protection); spend recorded ONLY after a successful 200 (P3#19, like the
     // Python SDK); SIWX-granted 200 (no payment, paymentPayload null) —
-    // nothing to verify
+    // nothing to verify; verify BEFORE recording spend (R16/Ž16 — forged
+    // receipt → spend NOT recorded, daily cap intact)
     if (paymentPayload) {
-      if (paymentAmountUsd !== null) this._recordSpend(paymentAmountUsd);
       await this._verifyReceipt(paymentPayload, resp);
+      if (paymentAmountUsd !== null) this._recordSpend(paymentAmountUsd);
+    }
+    // R17/Ž17 (§5.5): stream → SSE iterator; kvitas patikrintas ir spend
+    // įrašytas PRIEŠ pirmą chunk'ą (billing riba).
+    if (options.stream) {
+      return this._iterSse(resp);
     }
     return (await resp.json()) as Record<string, unknown>;
+  }
+
+  /**
+   * R17/Ž17 (§5.5): OpenAI SSE iterator — „data:" eilutės iki „[DONE]".
+   * Kaip Python SDK `_iter_sse`: keep-alive komentarai praleidžiami,
+   * dalinės eilutės buferizuojamos.
+   */
+  private async *_iterSse(
+    resp: Response,
+  ): AsyncGenerator<Record<string, unknown>, void, unknown> {
+    const reader = resp.body?.getReader();
+    if (!reader) {
+      throw new BridgenodeError("Streaming not supported by this runtime");
+    }
+    const decoder = new TextDecoder();
+    let buffer = "";
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith("data:")) continue;
+          const data = trimmed.slice(5).trim();
+          if (data === "[DONE]") return;
+          try {
+            yield JSON.parse(data) as Record<string, unknown>;
+          } catch {
+            // keep-alive komentaras arba dalinė eilutė — praleisti
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
   }
 
   // ── Spending policy (step 2, fail-closed) ──────────────────────────────────

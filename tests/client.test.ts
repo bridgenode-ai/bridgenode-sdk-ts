@@ -290,6 +290,26 @@ test("chat: maxTokens and mode are passed through", async () => {
   assert.equal(body.mode, "auto");
 });
 
+test("chat: null model + mode → body without model field (smart routing)",
+     async () => {
+  const feeKp = await crypto.subtle.generateKey(
+    { name: "Ed25519" }, true, ["sign", "verify"]);
+  const clientKp = await makeKeypair();
+  const { handler, seen } = makeServer(feeKp.privateKey, clientKp.address);
+  globalThis.fetch = handler as typeof fetch;
+
+  const client = new LLMClient({
+    baseUrl: API_BASE,
+    rpcUrl: RPC_URL,
+  });
+  // item 25 (§5.1): smart routing — model omitted (no `model: null` in body)
+  await client.chat(null, "hi", { mode: "auto" });
+  const body = seen.filter((r) => r.url.startsWith(API_BASE))[0]
+    .body as Record<string, unknown>;
+  assert.equal("model" in body, false, "body must not contain model: null");
+  assert.equal(body.mode, "auto");
+});
+
 test("Z41: string prompt → OpenAI messages (identical body as list)",
      async () => {
   const feeKp = await crypto.subtle.generateKey(

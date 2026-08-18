@@ -48,7 +48,10 @@ Caps are checked BEFORE signing — exceeded requests are blocked, no payment is
 ## Smart routing
 
 ```ts
-const resp = await client.chat(null, "Explain quantum computing", { mode: "auto" });
+// Explicit model:
+const resp = await client.chat("deepseek-v4-flash", "Explain quantum computing");
+// Smart routing (server picks the model — pass null as model):
+const resp2 = await client.chat(null, "Explain quantum computing", { mode: "auto" });
 // mode: "auto" | "eco" (cheapest) | "premium" (best)
 ```
 
