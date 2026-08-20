@@ -79,17 +79,22 @@ function envelope(amount = "2000", siwx = false,
   };
   if (siwx) {
     const now = new Date().toISOString().replace(/\.\d+Z$/, "Z");
+    // x402 2.23.0 (FAZĖ 3 #7): SIWX challenge MUST match the response URL
+    // origin (assertSIWxChallengeBoundToOrigin — fail-closed). The mock
+    // server lives at API_BASE, so the challenge is bound to it.
+    const origin = new URL(API_BASE).origin;          // e.g. http://test
+    const uri = `${API_BASE}/chat/completions`;
     env.extensions = {
       "sign-in-with-x": {
         info: {
-          domain: "bridgenode.cc",
-          uri: "https://bridgenode.cc/v1/chat/completions",
+          domain: new URL(origin).host,                // e.g. "test"
+          uri,
           version: "1",
           nonce: "nonce1234567890abcdef",
           issuedAt: now,
           expirationTime: new Date(Date.now() + 300_000)
             .toISOString().replace(/\.\d+Z$/, "Z"),
-          resources: ["https://bridgenode.cc/v1/chat/completions"],
+          resources: [uri],
         },
         supportedChains: [{ chainId: NETWORK, type: "ed25519" }],
       },
@@ -686,7 +691,8 @@ test("SIWX: header cryptographically valid (official verifySIWxSignature)",
   const { parseSIWxHeader, verifySIWxSignature } = await import("@x402/extensions");
   const payload = parseSIWxHeader(header);
   assert.equal(payload.address, clientKp.address);
-  assert.equal(payload.domain, "bridgenode.cc");
+  // x402 2.23.0 (FAZĖ 3 #7): challenge bound to response origin (API_BASE)
+  assert.equal(payload.domain, new URL(API_BASE).host);
   assert.equal(payload.nonce, "nonce1234567890abcdef");
   const result = await verifySIWxSignature(payload);
   assert.equal(result.isValid, true);

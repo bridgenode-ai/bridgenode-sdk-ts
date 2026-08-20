@@ -252,7 +252,13 @@ export class LLMClient {
         getHeader, await resp.json().catch(() => undefined));
 
       // SIWX: official hook — 402 with challenge → SIGN-IN-WITH-X header
-      siwxHeaders = await helper.handlePaymentRequired(paymentRequired);
+      // x402 2.23.0 (FAZĖ 3 #7): requires requestUrl (final URL after redirects).
+      // Use resp.url ONLY if it shares the request origin (a mocked/new Response
+      // may have a bogus url like "about:blank" — would fail-closed on domain check)
+      const finalUrl = (resp.url && url &&
+        resp.url.startsWith(new URL(url).origin)) ? resp.url : url;
+      siwxHeaders = await helper.handlePaymentRequired(
+        paymentRequired, finalUrl);
       if (siwxHeaders) {
         resp = await fetch(url, {
           method: "POST",
