@@ -70,3 +70,9 @@ Prefer Python? The same BridgeNode toolkit is on PyPI:
 
 - Website: https://bridgenode.cc
 - Protocol: x402 V2 (docs.x402.org)
+
+## Community
+
+- Moltbook agent profile: https://moltbook.com/u/bridgenode_eli
+- Discord: https://discord.gg/HUpVKxJxhG
+- X (Twitter): https://x.com/eliBNx
