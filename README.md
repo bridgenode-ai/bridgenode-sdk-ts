@@ -3,6 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/@bridgenode/llm.svg)](https://www.npmjs.com/package/@bridgenode/llm)
 [![npm downloads](https://img.shields.io/npm/dm/@bridgenode/llm.svg)](https://www.npmjs.com/package/@bridgenode/llm)
 [![License: MIT-0](https://img.shields.io/badge/License-MIT--0-yellow.svg)](https://opensource.org/license/mit-0/)
+[![CI](https://img.shields.io/github/actions/workflow/status/bridgenode-ai/bridgenode-sdk-ts/ci.yml)](https://github.com/bridgenode-ai/bridgenode-sdk-ts/actions)
 [![Website](https://img.shields.io/badge/Website-bridgenode.cc-blue)](https://bridgenode.cc)
 [![BridgeNode on x402-list](https://x402-list.com/badge/bridgenode.svg)](https://x402-list.com/services/bridgenode?utm_source=badge&utm_medium=referral&utm_campaign=embed)
 
