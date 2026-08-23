@@ -2,5 +2,7 @@
   "name": "@bridgenode/llm",
   "version": "1.0.4",
   "exports": "./src/index.ts",
-  "include": ["src/", "README.md", "LICENSE"]
+  "publish": {
+    "include": ["src/**/*.ts", "README.md", "LICENSE"]
+  }
 }
