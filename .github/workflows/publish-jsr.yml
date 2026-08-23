@@ -26,6 +26,9 @@ jobs:
         with:
           deno-version: "2.8.2"
 
+      - name: Install dependencies (npm ci)
+        run: npm ci
+
       - name: Publish to JSR (skip if version already published)
         run: |
           PKG_VER=$(node -p "require('./package.json').version")
