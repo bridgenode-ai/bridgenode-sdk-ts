@@ -5,7 +5,7 @@ metadata:
   author: BridgeNode
   version: "1.0.0"
   url: https://bridgenode.cc
-  repository: https://github.com/applefanaimail-blip/bridgenode-sdk-ts
+  repository: https://github.com/bridgenode-ai/bridgenode-sdk-ts
   network: solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp
   currency: USDC
 compatibility: TypeScript/Node.js agents (Node >= 20)

@@ -28,7 +28,7 @@
   "homepage": "https://bridgenode.cc",
   "repository": {
     "type": "git",
-    "url": "https://github.com/applefanaimail-blip/bridgenode-sdk-ts.git"
+    "url": "https://github.com/bridgenode-ai/bridgenode-sdk-ts.git"
   },
   "keywords": [
     "x402",
@@ -67,7 +67,7 @@
   },
   "author": "BridgeNode <eli.BNx@proton.me>",
   "bugs": {
-    "url": "https://github.com/applefanaimail-blip/bridgenode-sdk-ts/issues"
+    "url": "https://github.com/bridgenode-ai/bridgenode-sdk-ts/issues"
   },
   "funding": {
     "type": "individual",
