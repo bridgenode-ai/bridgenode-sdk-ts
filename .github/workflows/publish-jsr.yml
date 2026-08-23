@@ -1,0 +1,41 @@
+name: Publish to JSR (OIDC)
+
+# C16 6 žingsnis (08-23): JSR publish VYKSTA IŠ VIEŠO REPO su OIDC —
+# tokeno nereikia, o JSR gauna provenance (Sigstore transparency log).
+# Trigger: monorepo `create-public-releases` sukuria tag'ą `v*` ŠIAME repo
+# (gh release create) → šis workflow paleidžiamas → deno publish su OIDC.
+# ⚠️ Monorepo publish.yml JSR job'o NĖRA — token-based publish lenktyniautų
+# ir „pavogtų" provenance (OIDC tada skip'intų).
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  publish-jsr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # OIDC — JSR provenance (Sigstore)
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: denoland/setup-deno@v2.0.5
+        with:
+          deno-version: "2.8.2"
+
+      - name: Publish to JSR (skip if version already published)
+        run: |
+          PKG_VER=$(node -p "require('./package.json').version")
+          if curl -s "https://jsr.io/@bridgenode/llm/meta.json" | \
+             node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{try{const j=JSON.parse(d);process.exit(j.versions[process.argv[1]]?0:1)}catch{process.exit(1)}})" "$PKG_VER"; then
+            echo "Version $PKG_VER already published to JSR — skipping"
+          else
+            deno publish \
+              --unstable-bare-node-builtins \
+              --unstable-sloppy-imports \
+              --unstable-byonm \
+              --no-check
+          fi
