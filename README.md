@@ -1,6 +1,8 @@
 # @bridgenode/llm
 
 [![npm version](https://img.shields.io/npm/v/@bridgenode/llm.svg)](https://www.npmjs.com/package/@bridgenode/llm)
+[![JSR](https://jsr.io/badges/@bridgenode/llm)](https://jsr.io/@bridgenode/llm)
+[![JSR Score](https://jsr.io/badges/@bridgenode/llm/score)](https://jsr.io/@bridgenode/llm)
 [![npm downloads](https://img.shields.io/npm/dm/@bridgenode/llm.svg)](https://www.npmjs.com/package/@bridgenode/llm)
 [![License: MIT-0](https://img.shields.io/badge/License-MIT--0-yellow.svg)](https://opensource.org/license/mit-0/)
 [![CI](https://img.shields.io/github/actions/workflow/status/bridgenode-ai/bridgenode-sdk-ts/ci.yml)](https://github.com/bridgenode-ai/bridgenode-sdk-ts/actions)

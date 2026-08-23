@@ -1,5 +1,7 @@
 /**
  * index.ts — @bridgenode/llm public exports.
+ *
+ * @module
  */
 
 export {

@@ -43,22 +43,52 @@ import { createSIWxClientHook, type SIWxSigner } from "@x402/extensions";
 import { ExactSvmScheme } from "@x402/svm/exact/client";
 import * as dotenv from "dotenv";
 
+/**
+ * Default BridgeNode API base URL (`https://bridgenode.cc/v1`).
+ */
 export const BRIDGENODE_BASE_URL = "https://bridgenode.cc/v1";
+/**
+ * Solana mainnet network identifier (CAIP-2).
+ */
 export const NETWORK = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"; // Solana mainnet (CAIP-2)
+/**
+ * Solana mainnet USDC mint address.
+ */
 export const USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"; // Solana mainnet USDC mint
+/**
+ * USDC decimals (6).
+ */
 export const USDC_DECIMALS = 6;
 
 // The initial request waits in the queue until 402 (30s queue + 30s
 // window); retry with PAYMENT-SIGNATURE — up to the 115s budget (settle 20 + provider 30×3)
+/**
+ * Timeout for the initial request — waits in the queue until the 402 response.
+ */
 export const INITIAL_TIMEOUT_MS = 60_000;
+/**
+ * Timeout for the retry with PAYMENT-SIGNATURE (settle + provider budget).
+ */
 export const RETRY_TIMEOUT_MS = 115_000;
 // Total flow timeout ≥ sum of both (initial + retry ≈ 175s)
+/**
+ * Total flow timeout — initial + retry (≈ 175s).
+ */
 export const FLOW_TIMEOUT_MS = INITIAL_TIMEOUT_MS + RETRY_TIMEOUT_MS;
 
 // Spending policy: fail-closed
+/**
+ * Default maximum spend per single call (USD).
+ */
 export const DEFAULT_MAX_PER_CALL_USD = 0.05;
+/**
+ * Default maximum spend per day (USD).
+ */
 export const DEFAULT_DAILY_CAP_USD = 1.0;
 
+/**
+ * Error thrown by the BridgeNode SDK for API, payment, and policy failures.
+ */
 export class BridgenodeError extends Error {
   readonly statusCode?: number;
   readonly code?: string;
@@ -71,12 +101,18 @@ export class BridgenodeError extends Error {
   }
 }
 
+/**
+ * Options for a chat request.
+ */
 export interface ChatOptions {
   maxTokens?: number;
   mode?: "auto" | "eco" | "premium";
   stream?: boolean;  // R17/Ž17: SSE stream (§5.5) — returns AsyncGenerator of chunks
 }
 
+/**
+ * Options for configuring an {@link LLMClient}.
+ */
 export interface LLMClientOptions {
   baseUrl?: string;
   rpcUrl?: string;
@@ -115,6 +151,10 @@ interface PaymentPayloadShape {
   accepted: { amount: string; extra: Record<string, unknown> };
 }
 
+/**
+ * BridgeNode LLM client — AI inference for AI agents with x402 payment on
+ * Solana USDC. No API keys, no registration.
+ */
 export class LLMClient {
   readonly baseUrl: string;
   readonly initialTimeoutMs: number;
@@ -197,6 +237,10 @@ export class LLMClient {
 
   // ── API ────────────────────────────────────────────────────────────────
 
+  /**
+   * Send a chat completion request. Returns the full response object, or an
+   * `AsyncGenerator` of chunks when `stream` is enabled.
+   */
   async chat(model: string | null, messages: string | Array<Record<string, unknown>>,
              options: ChatOptions = {}): Promise<Record<string, unknown> | AsyncGenerator<Record<string, unknown>, void, unknown>> {
     await this._ensureInit();
