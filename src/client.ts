@@ -37,7 +37,7 @@ import {
   signatureBytes,
   verifySignature,
 } from "@solana/kit";
-import { getTransactionDecoder } from "@solana/transactions";
+import { getTransactionDecoder } from "@solana/kit";
 import { x402Client, x402HTTPClient } from "@x402/core/client";
 import { createSIWxClientHook, type SIWxSigner } from "@x402/extensions";
 import { ExactSvmScheme } from "@x402/svm/exact/client";
