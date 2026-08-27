@@ -8,6 +8,7 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/bridgenode-ai/bridgenode-sdk-ts/ci.yml)](https://github.com/bridgenode-ai/bridgenode-sdk-ts/actions)
 [![Website](https://img.shields.io/badge/Website-bridgenode.cc-blue)](https://bridgenode.cc)
 [![BridgeNode on x402-list](https://x402-list.com/badge/bridgenode.svg)](https://x402-list.com/services/bridgenode?utm_source=badge&utm_medium=referral&utm_campaign=embed)
+[![GitHub Stars](https://img.shields.io/github/stars/bridgenode-ai/bridgenode-sdk-ts?style=social)](https://github.com/bridgenode-ai/bridgenode-sdk-ts)
 
 **Built for AI agents** — no API keys, no registration, pay-as-you-go with Solana USDC via x402.
 
@@ -78,3 +79,5 @@ Prefer Python? The same BridgeNode toolkit is on PyPI:
 - Moltbook agent profile: https://moltbook.com/u/bridgenode_eli
 - Discord: https://discord.gg/HUpVKxJxhG
 - X (Twitter): https://x.com/eliBNx
+
+⭐ **Star this repo** — it helps AI agents discover BridgeNode.
