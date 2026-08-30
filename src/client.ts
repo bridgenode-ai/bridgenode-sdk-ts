@@ -5,7 +5,7 @@
  * (TransferChecked + Memo) via the official @x402/svm scheme →
  * PAYMENT-SIGNATURE → retry → 200.
  *
- * step 2 — Receipt verification + spending policy + SIWX (fail-closed, like ASG):
+ * step 2 — Receipt verification + spending policy + SIWX (fail-closed):
  * - After 200, the `PAYMENT-RESPONSE` receipt is verified: success=true,
  *   network = Solana mainnet, payer = our wallet, transaction = fee payer
  *   signature over OUR TX message (Free-Riding protection), amount matches
@@ -107,7 +107,7 @@ export class BridgenodeError extends Error {
 export interface ChatOptions {
   maxTokens?: number;
   mode?: "auto" | "eco" | "premium";
-  stream?: boolean;  // R17/Ž17: SSE stream (§5.5) — returns AsyncGenerator of chunks
+  stream?: boolean;  // SSE stream — returns AsyncGenerator of chunks
 }
 
 /**
@@ -251,14 +251,14 @@ export class LLMClient {
         ? [{ role: "user", content: messages }]
         : messages;
     const url = `${this.baseUrl}/chat/completions`;
-    // item 25 (§5.1): `model` omitted when null — body without `model: null`
+    // `model` omitted when null — body without `model: null`
     // (when sending only `mode` for smart routing, the server would get
     // JSON null → possible 400; Python SDK does the same)
     const body: Record<string, unknown> = { messages: normalizedMessages };
     if (model !== null && model !== undefined) body["model"] = model;
     if (options.maxTokens !== undefined) body["max_tokens"] = options.maxTokens;
     if (options.mode !== undefined) body["mode"] = options.mode;
-    if (options.stream) body["stream"] = true;  // R17/Ž17 (§5.5)
+    if (options.stream) body["stream"] = true;  // SSE stream
     const json = JSON.stringify(body);
 
     // Total flow timeout — the whole handshake (initial + SIWX +
@@ -296,7 +296,7 @@ export class LLMClient {
         getHeader, await resp.json().catch(() => undefined));
 
       // SIWX: official hook — 402 with challenge → SIGN-IN-WITH-X header
-      // x402 2.23.0 (FAZĖ 3 #7): requires requestUrl (final URL after redirects).
+      // requires requestUrl (final URL after redirects).
       // Use resp.url ONLY if it shares the request origin (a mocked/new Response
       // may have a bogus url like "about:blank" — would fail-closed on domain check)
       const finalUrl = (resp.url && url &&
@@ -317,7 +317,7 @@ export class LLMClient {
         const getHeader2 = (name: string): string | null => resp.headers.get(name);
         const paymentRequired2 = helper.getPaymentRequiredResponse(
           getHeader2, await resp.json().catch(() => undefined));
-        // item 36: fail-closed — pick a supported accepts entry
+        // fail-closed — pick a supported accepts entry
         // (exact + Solana mainnet + USDC); the SDK does not check the
         // asset — verified here, BEFORE signing (no TX for other mint/network)
         const selected = this._selectPaymentRequirement(paymentRequired2);
@@ -327,7 +327,7 @@ export class LLMClient {
 
         const payload = await helper.createPaymentPayload(paymentRequired2);
         paymentPayload = payload as unknown as PaymentPayloadShape;
-        paymentAmountUsd = amountUsd;  // spend recorded AFTER 200 (P3#19)
+        paymentAmountUsd = amountUsd;  // spend recorded AFTER 200
         const payHeaders = helper.encodePaymentSignatureHeader(payload);
         const retryHeaders = { "Content-Type": "application/json", ...payHeaders };
         if (siwxHeaders) Object.assign(retryHeaders, siwxHeaders);
@@ -352,16 +352,16 @@ export class LLMClient {
     }
 
     // step 2: receipt verification after 200 (error, not silence — Free-Riding
-    // protection); spend recorded ONLY after a successful 200 (P3#19, like the
+    // protection); spend recorded ONLY after a successful 200 (like the
     // Python SDK); SIWX-granted 200 (no payment, paymentPayload null) —
-    // nothing to verify; verify BEFORE recording spend (R16/Ž16 — forged
+    // nothing to verify; verify BEFORE recording spend (forged
     // receipt → spend NOT recorded, daily cap intact)
     if (paymentPayload) {
       await this._verifyReceipt(paymentPayload, resp);
       if (paymentAmountUsd !== null) this._recordSpend(paymentAmountUsd);
     }
-    // R17/Ž17 (§5.5): stream → SSE iterator; kvitas patikrintas ir spend
-    // įrašytas PRIEŠ pirmą chunk'ą (billing riba).
+    // stream → SSE iterator; receipt verified and spend
+    // recorded BEFORE the first chunk (billing boundary).
     if (options.stream) {
       return this._iterSse(resp);
     }
@@ -369,9 +369,9 @@ export class LLMClient {
   }
 
   /**
-   * R17/Ž17 (§5.5): OpenAI SSE iterator — „data:" eilutės iki „[DONE]".
-   * Kaip Python SDK `_iter_sse`: keep-alive komentarai praleidžiami,
-   * dalinės eilutės buferizuojamos.
+   * OpenAI SSE iterator — `data:` lines until `[DONE]`.
+   * Like the Python SDK `_iter_sse`: keep-alive comments are skipped,
+   * partial lines are buffered.
    */
   private async *_iterSse(
     resp: Response,
@@ -397,7 +397,7 @@ export class LLMClient {
           try {
             yield JSON.parse(data) as Record<string, unknown>;
           } catch {
-            // keep-alive komentaras arba dalinė eilutė — praleisti
+            // keep-alive comment or partial line — skip
           }
         }
       }
@@ -409,7 +409,7 @@ export class LLMClient {
   // ── Spending policy (step 2, fail-closed) ──────────────────────────────────
 
   /**
-   * item 36: fail-closed — supported accepts entry (exact + Solana mainnet + USDC).
+   * Fail-closed — supported accepts entry (exact + Solana mainnet + USDC).
    *
    * The SDK picks the FIRST entry whose scheme/network it supports (exact SVM,
    * Solana mainnet) — it does not check the asset. So we verify here BEFORE

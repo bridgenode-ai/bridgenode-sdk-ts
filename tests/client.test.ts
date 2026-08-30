@@ -79,7 +79,7 @@ function envelope(amount = "2000", siwx = false,
   };
   if (siwx) {
     const now = new Date().toISOString().replace(/\.\d+Z$/, "Z");
-    // x402 2.23.0 (FAZĖ 3 #7): SIWX challenge MUST match the response URL
+    // SIWX challenge MUST match the response URL
     // origin (assertSIWxChallengeBoundToOrigin — fail-closed). The mock
     // server lives at API_BASE, so the challenge is bound to it.
     const origin = new URL(API_BASE).origin;          // e.g. http://test
@@ -307,7 +307,7 @@ test("chat: null model + mode → body without model field (smart routing)",
     baseUrl: API_BASE,
     rpcUrl: RPC_URL,
   });
-  // item 25 (§5.1): smart routing — model omitted (no `model: null` in body)
+  // smart routing — model omitted (no `model: null` in body)
   await client.chat(null, "hi", { mode: "auto" });
   const body = seen.filter((r) => r.url.startsWith(API_BASE))[0]
     .body as Record<string, unknown>;
@@ -315,7 +315,7 @@ test("chat: null model + mode → body without model field (smart routing)",
   assert.equal(body.mode, "auto");
 });
 
-test("Z41: string prompt → OpenAI messages (identical body as list)",
+test("string prompt → OpenAI messages (identical body as list)",
      async () => {
   const feeKp = await crypto.subtle.generateKey(
     { name: "Ed25519" }, true, ["sign", "verify"]);
@@ -538,7 +538,7 @@ test("spending: env overrides (BRIDGENODE_MAX_PER_CALL/DAILY_CAP)", () => {
 
 // ── Supported entry selection ────────────────────────────────────────────
 
-test("Z36: 402 with another mint → error BEFORE signing (no TX)", async () => {
+test("402 with another mint → error BEFORE signing (no TX)", async () => {
   const feeKp = await crypto.subtle.generateKey(
     { name: "Ed25519" }, true, ["sign", "verify"]);
   const clientKp = await makeKeypair();
@@ -557,7 +557,7 @@ test("Z36: 402 with another mint → error BEFORE signing (no TX)", async () => 
   assert.equal(seen.filter((r) => r.url.startsWith(API_BASE)).length, 1);
 });
 
-test("Z36: 402 with another network → error BEFORE signing (no TX)", async () => {
+test("402 with another network → error BEFORE signing (no TX)", async () => {
   const feeKp = await crypto.subtle.generateKey(
     { name: "Ed25519" }, true, ["sign", "verify"]);
   const clientKp = await makeKeypair();
@@ -576,7 +576,7 @@ test("Z36: 402 with another network → error BEFORE signing (no TX)", async () 
   assert.equal(seen.filter((r) => r.url.startsWith(API_BASE)).length, 1);
 });
 
-test("Z36: empty accepts → error BEFORE signing (no TX)", async () => {
+test("empty accepts → error BEFORE signing (no TX)", async () => {
   const feeKp = await crypto.subtle.generateKey(
     { name: "Ed25519" }, true, ["sign", "verify"]);
   const clientKp = await makeKeypair();
@@ -691,7 +691,7 @@ test("SIWX: header cryptographically valid (official verifySIWxSignature)",
   const { parseSIWxHeader, verifySIWxSignature } = await import("@x402/extensions");
   const payload = parseSIWxHeader(header);
   assert.equal(payload.address, clientKp.address);
-  // x402 2.23.0 (FAZĖ 3 #7): challenge bound to response origin (API_BASE)
+  // challenge bound to response origin (API_BASE)
   assert.equal(payload.domain, new URL(API_BASE).host);
   assert.equal(payload.nonce, "nonce1234567890abcdef");
   const result = await verifySIWxSignature(payload);
@@ -719,11 +719,11 @@ test("default baseUrl and timeouts", async () => {
   assert.ok(client.initialTimeoutMs >= 30_000);
   assert.ok(client.retryTimeoutMs >= 113_000);
   assert.ok(client.retryTimeoutMs <= 115_000);
-  // Z42: total flow timeout ≥ initial + retry
+  // total flow timeout ≥ initial + retry
   assert.ok(client.flowTimeoutMs >= client.initialTimeoutMs + client.retryTimeoutMs);
 });
 
-test("Z42: flow timeout exceeded → BridgenodeError BEFORE request", async () => {
+test("flow timeout exceeded → BridgenodeError BEFORE request", async () => {
   const feeKp = await crypto.subtle.generateKey(
     { name: "Ed25519" }, true, ["sign", "verify"]);
   const clientKp = await makeKeypair();
