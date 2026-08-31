@@ -9,3 +9,7 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    ignore:
+      # @solana/kit 8.x major bump deferred until x402/@solana compatibility
+      # confirmed (2026-08-31); PR #5 closed.
+      - dependency-name: "@solana/kit"
