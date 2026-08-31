@@ -50,7 +50,7 @@
     "@solana/kit": "^7.1.0",
     "@x402/core": "~2.23.0",
     "@x402/extensions": "^2.23.0",
-    "@x402/svm": "~2.23.0",
+    "@x402/svm": "~2.24.0",
     "dotenv": "^17.0.0"
   },
   "devDependencies": {
