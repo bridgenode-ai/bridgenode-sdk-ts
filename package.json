@@ -1,6 +1,6 @@
 {
   "name": "@bridgenode/llm",
-  "version": "1.0.6",
+  "version": "1.1.0",
   "description": "BridgeNode LLM client — AI inference for AI agents with x402 payment on Solana USDC. No API keys, no registration.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -47,17 +47,17 @@
     "openai-compatible"
   ],
   "dependencies": {
-    "@solana/kit": "^7.1.0",
-    "@x402/core": "~2.23.0",
-    "@x402/extensions": "^2.23.0",
-    "@x402/svm": "~2.23.0",
+    "@solana/kit": "^8.2.0",
+    "@x402/core": "~2.24.0",
+    "@x402/extensions": "^2.24.0",
+    "@x402/svm": "~2.24.0",
     "dotenv": "^17.0.0"
   },
   "devDependencies": {
-    "@types/node": "^26.1.2",
+    "@types/node": "^26.4.0",
     "tsup": "^8.5.1",
-    "tsx": "^4.20.0",
-    "typescript": "^5.7.0"
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.3"
   },
   "engines": {
     "node": ">=20"
