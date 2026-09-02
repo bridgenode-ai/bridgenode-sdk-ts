@@ -273,13 +273,41 @@ export class LLMClient {
       return Math.min(callMs, remaining);
     };
 
-    // 1) Initial request (no payment): queue until 402
-    let resp = await fetch(url, {
+    // 1) Initial request (no payment): queue until 402.
+    // Client-side retry (503 queue full / wait timeout) and 429 (per-agent
+    // queue cap / 402 rate limit) are retried with backoff — BEFORE any
+    // payment (nothing was charged, retry is free). Retry-After header is
+    // honoured when present. Same behaviour as the Python SDK (fix.md 4.1).
+    // After payment: NO retry (single retry with PAYMENT-SIGNATURE only).
+    let resp = await this._fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: json,
       signal: AbortSignal.timeout(flowTimeout(this.initialTimeoutMs)),
     });
+    const retries = 3;
+    const backoffMs = 1000;
+    for (let attempt = 0;
+         (resp.status === 503 || resp.status === 429) && attempt < retries;
+         attempt += 1) {
+      let waitMs = backoffMs * (2 ** attempt);
+      const retryAfter = resp.headers.get("Retry-After");
+      if (retryAfter) {
+        const ra = Number(retryAfter);
+        if (Number.isFinite(ra) && ra >= 0) waitMs = ra * 1000;
+      }
+      // Cap at 15s (Python SDK) and never sleep past the flow deadline —
+      // the next fetch would throw the flow timeout anyway.
+      waitMs = Math.min(waitMs, 15_000,
+                        Math.max(flowDeadline - Date.now(), 0));
+      await new Promise<void>((resolve) => setTimeout(resolve, waitMs));
+      resp = await this._fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: json,
+        signal: AbortSignal.timeout(flowTimeout(this.initialTimeoutMs)),
+      });
+    }
 
     // 2) 402 → SIWX first, then spending policy + payment
     let paymentPayload: PaymentPayloadShape | null = null;
@@ -301,10 +329,18 @@ export class LLMClient {
       // may have a bogus url like "about:blank" — would fail-closed on domain check)
       const finalUrl = (resp.url && url &&
         resp.url.startsWith(new URL(url).origin)) ? resp.url : url;
-      siwxHeaders = await helper.handlePaymentRequired(
-        paymentRequired, finalUrl);
+      // B4 (fix.md): SIWX failure must NOT break chat() — fall back to
+      // payment, like the Python SDK (client.py:423-428 wraps the hook call
+      // in try/except → None). A mismatched challenge or signer error would
+      // otherwise kill the whole request even though payment would work.
+      try {
+        siwxHeaders = await helper.handlePaymentRequired(
+          paymentRequired, finalUrl);
+      } catch {
+        siwxHeaders = null;  // fallback to payment
+      }
       if (siwxHeaders) {
-        resp = await fetch(url, {
+        resp = await this._fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json", ...siwxHeaders },
           body: json,
@@ -321,7 +357,16 @@ export class LLMClient {
         // (exact + Solana mainnet + USDC); the SDK does not check the
         // asset — verified here, BEFORE signing (no TX for other mint/network)
         const selected = this._selectPaymentRequirement(paymentRequired2);
-        const amountAtomic = Number(selected.amount);
+        // B2 (fix.md): malformed server amount (decimal/garbage/negative)
+        // must surface as BridgenodeError, not a silent spend check — same
+        // fail-closed contract as the Python SDK (client.py int() + >0).
+        const amountAtomicNum = Number(selected.amount);
+        if (!Number.isInteger(amountAtomicNum) || amountAtomicNum <= 0) {
+          throw new BridgenodeError(
+            `Malformed payment amount ${JSON.stringify(selected.amount)} ` +
+            `in 402 response — no payment made`);
+        }
+        const amountAtomic = amountAtomicNum;
         const amountUsd = amountAtomic / (10 ** USDC_DECIMALS);
         this._checkSpending(amountUsd);
 
@@ -331,12 +376,33 @@ export class LLMClient {
         const payHeaders = helper.encodePaymentSignatureHeader(payload);
         const retryHeaders = { "Content-Type": "application/json", ...payHeaders };
         if (siwxHeaders) Object.assign(retryHeaders, siwxHeaders);
-        resp = await fetch(url, {
-          method: "POST",
-          headers: retryHeaders,
-          body: json,
-          signal: AbortSignal.timeout(flowTimeout(this.retryTimeoutMs)),
-        });
+        // B3 (fix.md): for SSE the flow timeout must bound only the HEAD
+        // (until 200 headers) — AbortSignal.timeout() would stay armed while
+        // reading the body and cut long generations mid-stream. Python SDK:
+        // per-read timeout, no total cap. Non-stream: keep the total cap
+        // (body is a small JSON, matches Python _post total timeout).
+        if (options.stream) {
+          const controller = new AbortController();
+          const timer = setTimeout(
+            () => controller.abort(), flowTimeout(this.retryTimeoutMs));
+          try {
+            resp = await this._fetch(url, {
+              method: "POST",
+              headers: retryHeaders,
+              body: json,
+              signal: controller.signal,
+            });
+          } finally {
+            clearTimeout(timer);  // headers received — body read unbounded
+          }
+        } else {
+          resp = await this._fetch(url, {
+            method: "POST",
+            headers: retryHeaders,
+            body: json,
+            signal: AbortSignal.timeout(flowTimeout(this.retryTimeoutMs)),
+          });
+        }
       }
     }
 
@@ -453,6 +519,26 @@ export class LLMClient {
   private _recordSpend(amountUsd: number): void {
     const today = new Date().toISOString().slice(0, 10);
     this.dailySpend[today] = (this.dailySpend[today] ?? 0) + amountUsd;
+  }
+
+  /**
+   * B7 (fix.md): fetch rejects with a raw TypeError on network-level failures
+   * (DNS/TCP/reset) and DOMException AbortError on flow-timeout aborts — the
+   * agent expects BridgenodeError everywhere (Python SDK maps httpx
+   * ConnectError/ReadError/TimeoutException the same way).
+   */
+  private async _fetch(url: string, init?: RequestInit): Promise<Response> {
+    try {
+      return await fetch(url, init);
+    } catch (err) {
+      if (err instanceof BridgenodeError) throw err;
+      const name = (err as Error)?.name;
+      if (name === "AbortError") {
+        throw new BridgenodeError("Request timed out");
+      }
+      throw new BridgenodeError(
+        `Connection failed: ${(err as Error)?.message ?? String(err)}`);
+    }
   }
 
   // ── Receipt verification (step 2) ──────────────────────────────────────────

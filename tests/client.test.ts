@@ -51,7 +51,8 @@ async function makeKeypair(): Promise<{ walletKey: string; address: string }> {
 
 /** 402 V2 envelope — as the server sends it. */
 function envelope(amount = "2000", siwx = false,
-                  asset = USDC, network = NETWORK): Record<string, unknown> {
+                  asset = USDC, network = NETWORK,
+                  siwxMismatch = false): Record<string, unknown> {
   const env: Record<string, unknown> = {
     x402Version: 2,
     error: "PAYMENT-SIGNATURE header is required",
@@ -84,11 +85,15 @@ function envelope(amount = "2000", siwx = false,
     // server lives at API_BASE, so the challenge is bound to it.
     const origin = new URL(API_BASE).origin;          // e.g. http://test
     const uri = `${API_BASE}/chat/completions`;
+    // B4: mismatched challenge → the client hook throws — the client must
+    // fall back to payment instead of breaking chat().
+    const chOrigin = siwxMismatch ? "https://evil.example" : origin;
+    const chUri = siwxMismatch ? "https://evil.example/chat/completions" : uri;
     env.extensions = {
       "sign-in-with-x": {
         info: {
-          domain: new URL(origin).host,                // e.g. "test"
-          uri,
+          domain: new URL(chOrigin).host,
+          uri: chUri,
           version: "1",
           nonce: "nonce1234567890abcdef",
           issuedAt: now,
@@ -131,6 +136,12 @@ interface ServerOptions {
   receiptOverrides?: Record<string, unknown>;
   asset?: string;
   network?: string;
+  /** SSE stream response (B3): first chunk delayed beyond the flow timeout. */
+  stream?: boolean;
+  /** Delay before the first SSE chunk, ms (B3). */
+  streamDelayMs?: number;
+  /** SIWX challenge bound to a DIFFERENT origin → the hook throws (B4). */
+  siwxMismatch?: boolean;
 }
 
 /**
@@ -200,7 +211,8 @@ function makeServer(feePayerPriv: CryptoKey, clientAddress: string,
         });
       }
       const env = envelope(opts.amount ?? "2000", opts.siwx ?? false,
-                           opts.asset ?? USDC, opts.network ?? NETWORK);
+                           opts.asset ?? USDC, opts.network ?? NETWORK,
+                           opts.siwxMismatch ?? false);
       // Envelope feePayer = real fee payer address (not a constant) — otherwise
       // receipt verification would fail (signature of another key)
       env.accepts[0].extra.feePayer = await feePayerAddr();
@@ -232,6 +244,28 @@ function makeServer(feePayerPriv: CryptoKey, clientAddress: string,
     if (!opts.noReceipt) {
       respHeaders["PAYMENT-RESPONSE"] = Buffer.from(
         JSON.stringify(settle)).toString("base64");
+    }
+    // B3: SSE stream response — the first chunk arrives AFTER the flow
+    // timeout would have fired; the stream must not be cut mid-generation.
+    if (opts.stream) {
+      const delayMs = opts.streamDelayMs ?? 200;
+      const encoder = new TextEncoder();
+      const body = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          await new Promise((r) => setTimeout(r, delayMs));
+          controller.enqueue(encoder.encode(
+            `data: ${JSON.stringify({ choices: [{ delta: { content: "Hel" } }] })}\n\n`));
+          await new Promise((r) => setTimeout(r, delayMs));
+          controller.enqueue(encoder.encode(
+            `data: ${JSON.stringify({ choices: [{ delta: { content: "lo" } }] })}\n\n`));
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+        },
+      });
+      return new Response(body, {
+        status: 200,
+        headers: { ...respHeaders, "Content-Type": "text/event-stream" },
+      });
     }
     return new Response(JSON.stringify(openaiResponse()), {
       status: 200,
@@ -536,6 +570,69 @@ test("spending: env overrides (BRIDGENODE_MAX_PER_CALL/DAILY_CAP)", () => {
   }
 });
 
+test("malformed 402 amount (decimal) → BridgenodeError BEFORE signing (B2)",
+     async () => {
+  const feeKp = await crypto.subtle.generateKey(
+    { name: "Ed25519" }, true, ["sign", "verify"]);
+  const clientKp = await makeKeypair();
+  const { handler, seen } = makeServer(feeKp.privateKey, clientKp.address,
+                                       { amount: "1.5" });
+  globalThis.fetch = handler as typeof fetch;
+
+  const client = new LLMClient({ baseUrl: API_BASE, rpcUrl: RPC_URL });
+  await assert.rejects(
+    () => client.chat("deepseek-v4-flash", [{ role: "user", content: "hi" }]),
+    /Malformed payment amount/);
+  // No payment retry — fail-closed before signing
+  assert.equal(seen.filter((r) => r.url.startsWith(API_BASE)).length, 1);
+  assert.equal(seen[0].hasPayment, false);
+});
+
+test("malformed 402 amount (NaN/zero/negative) → BridgenodeError BEFORE signing (B2)",
+     async () => {
+  const feeKp = await crypto.subtle.generateKey(
+    { name: "Ed25519" }, true, ["sign", "verify"]);
+  const clientKp = await makeKeypair();
+  for (const bad of ["abc", "0", "-5"]) {
+    const { handler, seen } = makeServer(feeKp.privateKey, clientKp.address,
+                                         { amount: bad });
+    globalThis.fetch = handler as typeof fetch;
+    const client = new LLMClient({ baseUrl: API_BASE, rpcUrl: RPC_URL });
+    await assert.rejects(
+      () => client.chat("deepseek-v4-flash", [{ role: "user", content: "hi" }]),
+      /Malformed payment amount/);
+    assert.equal(seen.filter((r) => r.url.startsWith(API_BASE)).length, 1);
+  }
+});
+
+test("stream: long SSE generation not cut by flow timeout (B3)", async () => {
+  const feeKp = await crypto.subtle.generateKey(
+    { name: "Ed25519" }, true, ["sign", "verify"]);
+  const clientKp = await makeKeypair();
+  // First SSE chunk arrives AFTER the retry head timeout (200ms) — the body
+  // read must NOT be aborted (Python SDK: per-read timeout, no total cap).
+  const { handler } = makeServer(feeKp.privateKey, clientKp.address,
+                                 { stream: true, streamDelayMs: 500 });
+  globalThis.fetch = handler as typeof fetch;
+  const client = new LLMClient({
+    baseUrl: API_BASE, rpcUrl: RPC_URL,
+    initialTimeoutMs: 1000, retryTimeoutMs: 200, flowTimeoutMs: 1500,
+  });
+
+  const chunks: string[] = [];
+  const gen = await client.chat(
+    "deepseek-v4-flash", [{ role: "user", content: "hi" }],
+    { stream: true }) as AsyncGenerator<Record<string, unknown>>;
+  for await (const chunk of gen) {
+    const delta = (chunk.choices as Array<{ delta?: { content?: string } }>)[0]
+      ?.delta?.content;
+    if (delta) chunks.push(delta);
+  }
+  // Both chunks arrived despite the head timeout being much shorter — the
+  // stream was not cut mid-generation.
+  assert.deepEqual(chunks, ["Hel", "lo"]);
+});
+
 // ── Supported entry selection ────────────────────────────────────────────
 
 test("402 with another mint → error BEFORE signing (no TX)", async () => {
@@ -697,6 +794,45 @@ test("SIWX: header cryptographically valid (official verifySIWxSignature)",
   const result = await verifySIWxSignature(payload);
   assert.equal(result.isValid, true);
   assert.equal(result.payer, clientKp.address);
+});
+
+test("SIWX: hook error (mismatched challenge) → fallback to payment (B4)",
+     async () => {
+  const feeKp = await crypto.subtle.generateKey(
+    { name: "Ed25519" }, true, ["sign", "verify"]);
+  const clientKp = await makeKeypair();
+  // Challenge bound to a DIFFERENT origin → the SIWX hook throws
+  // (assertSIWxChallengeBoundToOrigin). chat() must NOT break — it falls
+  // back to payment (Python SDK behavior).
+  const { handler, seen } = makeServer(feeKp.privateKey, clientKp.address,
+                                       { siwx: true, siwxMismatch: true });
+  globalThis.fetch = handler as typeof fetch;
+
+  const client = new LLMClient({ baseUrl: API_BASE, rpcUrl: RPC_URL });
+  const resp = await client.chat("deepseek-v4-flash",
+                                 [{ role: "user", content: "hi" }]);
+  assert.equal((resp.choices as Array<Record<string, unknown>>)[0]
+    .message.content, "Hello!");
+  // No SIWX retry (hook failed) — straight to payment: initial + payment retry
+  const apiSeen = seen.filter((r) => r.url.startsWith(API_BASE));
+  assert.equal(apiSeen.length, 2);
+  assert.equal(apiSeen[1].hasPayment, true);
+  assert.equal(apiSeen[1].hasSiwx, false);
+});
+
+test("network error (fetch reject) → BridgenodeError, not raw TypeError (B7)",
+     async () => {
+  const clientKp = await makeKeypair();
+  // Any API/RPC call → fetch rejects like a dropped connection
+  globalThis.fetch = (async () => {
+    throw new TypeError("fetch failed");
+  }) as typeof fetch;
+
+  const client = new LLMClient({ baseUrl: API_BASE, rpcUrl: RPC_URL });
+  await assert.rejects(
+    () => client.chat("deepseek-v4-flash", [{ role: "user", content: "hi" }]),
+    (err: unknown) => err instanceof BridgenodeError
+      && /Connection failed/.test((err as Error).message));
 });
 
 // ── Configuration ───────────────────────────────────────────────────────────
