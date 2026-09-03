@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/bridgenode-ai/bridgenode-llm/compare/llm-v1.1.0...llm-v1.1.1) (2026-09-03)
+
+
+### Bug Fixes
+
+* **sdk-ts:** drop frozen version from jsr.json — deno publish takes version from package.json (JSR stuck at 1.0.5) ([30dcf1d](https://github.com/bridgenode-ai/bridgenode-llm/commit/30dcf1d4a22c07c3d90531dbf5445f8dc23bcdca))
+
 ## [1.1.0](https://github.com/bridgenode-ai/bridgenode-llm/compare/llm-v1.0.6...llm-v1.1.0) (2026-09-01)
 
 

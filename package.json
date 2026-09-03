@@ -1,6 +1,6 @@
 {
   "name": "@bridgenode/llm",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "BridgeNode LLM client — AI inference for AI agents with x402 payment on Solana USDC. No API keys, no registration.",
   "type": "module",
   "main": "./dist/index.cjs",
