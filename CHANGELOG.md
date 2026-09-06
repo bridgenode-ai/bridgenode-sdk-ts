@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.3](https://github.com/bridgenode-ai/bridgenode-llm/compare/llm-v1.1.2...llm-v1.1.3) (2026-09-06)
+
+
+### Bug Fixes
+
+* **deps:** sdk-ts [@x402](https://github.com/x402) 2.25.0 + @types/node 26.4.1 ([e098ee9](https://github.com/bridgenode-ai/bridgenode-llm/commit/e098ee90b405d90d2c2c7abcad599bde3a2dab0e))
+
 ## [1.1.2](https://github.com/bridgenode-ai/bridgenode-llm/compare/llm-v1.1.1...llm-v1.1.2) (2026-09-03)
 
 
