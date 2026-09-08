@@ -1,6 +1,6 @@
 {
   "name": "@bridgenode/llm",
-  "version": "1.1.3",
+  "version": "1.1.4",
   "description": "BridgeNode LLM client — AI inference for AI agents with x402 payment on Solana USDC. No API keys, no registration.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -23,7 +23,7 @@
     "glama.json"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && tsc --emitDeclarationOnly",
     "test": "node --test --test-isolation=none --test-concurrency=1 --import tsx tests/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
@@ -57,7 +57,7 @@
     "@types/node": "^26.4.0",
     "tsup": "^8.5.1",
     "tsx": "^4.23.13",
-    "typescript": "^5.9.3"
+    "typescript": "^7.0.2"
   },
   "engines": {
     "node": ">=20"

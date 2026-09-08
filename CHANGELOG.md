@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.4](https://github.com/bridgenode-ai/bridgenode-llm/compare/llm-v1.1.3...llm-v1.1.4) (2026-09-08)
+
+
+### Bug Fixes
+
+* **sdk-ts:** emit type declarations via tsc, typescript 7 ([76aaee2](https://github.com/bridgenode-ai/bridgenode-llm/commit/76aaee2b0d97fdd96a4b9e8df8e9ad3f9ce4e2cf))
+
 ## [1.1.3](https://github.com/bridgenode-ai/bridgenode-llm/compare/llm-v1.1.2...llm-v1.1.3) (2026-09-06)
 
 
