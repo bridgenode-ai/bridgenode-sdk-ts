@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/bridgenode-ai/bridgenode-llm/compare/llm-v1.1.4...llm-v1.2.0) (2026-09-10)
+
+
+### Features
+
+* **sdk-ts:** wallet key optional — the free path needs no key ([b54c0bf](https://github.com/bridgenode-ai/bridgenode-llm/commit/b54c0bf11508f940614c26c7283ee028872a7e21))
+
 ## [1.1.4](https://github.com/bridgenode-ai/bridgenode-llm/compare/llm-v1.1.3...llm-v1.1.4) (2026-09-08)
 
 

@@ -28,8 +28,8 @@ npm i @bridgenode/llm
 ```ts
 import { LLMClient } from "@bridgenode/llm";
 
-const client = new LLMClient(); // BRIDGENODE_WALLET_KEY from env
-const resp = await client.chat("deepseek-v4-flash", [
+const client = new LLMClient(); // BRIDGENODE_WALLET_KEY from env — OPTIONAL (free path needs none)
+const resp = await client.chat("deepseek-flash", [
   { role: "user", content: "Hello!" }]);
 console.log(resp.choices[0].message.content);
 ```
@@ -49,7 +49,7 @@ Caps are checked BEFORE signing — exceeded requests are blocked, no payment is
 
 ```ts
 // Explicit model:
-const resp = await client.chat("deepseek-v4-flash", "Explain quantum computing");
+const resp = await client.chat("deepseek-flash", "Explain quantum computing");
 // Smart routing (server picks the model — pass null as model):
 const resp2 = await client.chat(null, "Explain quantum computing", { mode: "auto" });
 // mode: "auto" | "eco" (cheapest) | "premium" (best)
@@ -59,6 +59,12 @@ const resp2 = await client.chat(null, "Explain quantum computing", { mode: "auto
 
 Always check `GET https://bridgenode.cc/v1/models` for current per-token prices before use. Set `maxTokens` to control cost.
 
+## Free access (start here)
+
+- **Free models** (`"free": true` in `GET /v1/models`) run without payment — no wallet, no 402.
+- **Free trials:** a client that has never called BridgeNode gets **2 free calls on PAID models**; the remaining count comes back in `client.lastTrialsRemaining`, and the wall (402) carries a machine-readable offer.
+- `BRIDGENODE_WALLET_KEY` is read lazily — required only when a request actually reaches the payment wall.
+
 ## Cost warning
 
-This SDK spends real USDC on every request (on-chain x402 micropayment). Check prices first, set spending caps, and keep the wallet funded.
+This SDK spends real USDC on PAID requests once the free path is used up (on-chain x402 micropayment). Check prices first, set spending caps, and keep the wallet funded.

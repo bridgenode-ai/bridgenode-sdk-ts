@@ -837,13 +837,58 @@ test("network error (fetch reject) → BridgenodeError, not raw TypeError (B7)",
 
 // ── Configuration ───────────────────────────────────────────────────────────
 
-test("missing key → BridgenodeError", () => {
+test("missing key → free path works without a wallet", async () => {
   const saved = process.env.BRIDGENODE_WALLET_KEY;
   delete process.env.BRIDGENODE_WALLET_KEY;
+  const seen: Array<{ hasPayment: boolean }> = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (_url: string, init?: RequestInit) => {
+    seen.push({ hasPayment: new Headers(init?.headers).has("PAYMENT-SIGNATURE") });
+    return new Response(JSON.stringify(openaiResponse()), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "X-Bridgenode-Free-Trial": "trial",
+        "X-Bridgenode-Free-Trials-Remaining": "1",
+      },
+    });
+  }) as typeof fetch;
   try {
-    assert.throws(() => new LLMClient({ baseUrl: API_BASE }),
-                  /BRIDGENODE_WALLET_KEY/);
+    // The constructor must NOT throw: free models and free trials need no key
+    const client = new LLMClient({ baseUrl: API_BASE });
+    const resp = await client.chat("deepseek-flash",
+                                   [{ role: "user", content: "hi" }]) as
+      Record<string, unknown>;
+    assert.ok(resp["choices"], "free inference must return the response");
+    // free-trial state is visible without parsing prose
+    assert.equal(client.lastTrialsRemaining, 1);
+    assert.equal(client.lastTrialKind, "trial");
+    assert.deepEqual(seen, [{ hasPayment: false }], "no payment attempted");
   } finally {
+    globalThis.fetch = originalFetch;
+    if (saved !== undefined) process.env.BRIDGENODE_WALLET_KEY = saved;
+  }
+});
+
+test("missing key + payment wall → BridgenodeError with the key name", async () => {
+  const saved = process.env.BRIDGENODE_WALLET_KEY;
+  const feeKp = await crypto.subtle.generateKey(
+    { name: "Ed25519" }, true, ["sign", "verify"]);
+  const clientKp = await makeKeypair();
+  const { handler } = makeServer(feeKp.privateKey, clientKp.address);
+  // ⚠️ AFTER makeKeypair() — that helper sets BRIDGENODE_WALLET_KEY itself
+  delete process.env.BRIDGENODE_WALLET_KEY;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = handler as typeof fetch;
+  try {
+    const client = new LLMClient({ baseUrl: API_BASE, rpcUrl: RPC_URL });
+    await assert.rejects(
+      () => client.chat("deepseek-flash", [{ role: "user", content: "hi" }]),
+      (err: unknown) => err instanceof BridgenodeError
+        && /BRIDGENODE_WALLET_KEY/.test((err as Error).message)
+        && /free/i.test((err as Error).message));
+  } finally {
+    globalThis.fetch = originalFetch;
     if (saved !== undefined) process.env.BRIDGENODE_WALLET_KEY = saved;
   }
 });

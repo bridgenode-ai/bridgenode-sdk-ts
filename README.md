@@ -10,7 +10,7 @@
 [![BridgeNode on x402-list](https://x402-list.com/badge/bridgenode.svg)](https://x402-list.com/services/bridgenode?utm_source=badge&utm_medium=referral&utm_campaign=embed)
 [![GitHub Stars](https://img.shields.io/github/stars/bridgenode-ai/bridgenode-sdk-ts?style=social)](https://github.com/bridgenode-ai/bridgenode-sdk-ts)
 
-**Built for AI agents** — no API keys, no registration, pay-as-you-go with Solana USDC via x402.
+**Built for AI agents** — no API keys, no registration, pay-as-you-go with Solana USDC via x402. Start free: free models and 2 free calls on paid models per client, no wallet required.
 
 BridgeNode TypeScript SDK — AI inference for AI agents, no API keys. Payment: **Solana USDC via x402** (automatic handshake, fee sponsorship — no SOL needed for the agent).
 
@@ -25,18 +25,34 @@ npm install @bridgenode/llm
 ```ts
 import { LLMClient } from "@bridgenode/llm";
 
-const client = new LLMClient(); // key from .env (BRIDGENODE_WALLET_KEY)
-const resp = await client.chat("deepseek-v4-flash", [
+const client = new LLMClient(); // wallet key from .env — OPTIONAL (free path needs none)
+const resp = await client.chat("deepseek-flash", [
   { role: "user", content: "Hello!" }]);
 console.log(resp.choices[0].message.content);
 ```
 
 Everything is handled automatically: `402 → partial TX → PAYMENT-SIGNATURE → 200`. No API key required.
 
+### Free path — no wallet needed
+
+Free models (`"free": true` in `GET /v1/models`) run without payment, and a
+client that has never called BridgeNode gets **2 free calls on PAID models**
+(free trials) — real inference before any wallet exists. `BRIDGENODE_WALLET_KEY`
+is read lazily: it is needed only when a request actually reaches the payment
+wall, and then the SDK throws one actionable error instead of a broken
+handshake. The remaining trial count is exposed after every call:
+
+```ts
+const client = new LLMClient();     // no wallet required for the free path
+await client.chat("gpt-oss-120b", [{ role: "user", content: "hi" }]);
+console.log(client.lastTrialsRemaining);   // null for free models, 1 → 0 for trials
+```
+
 ## .env
 
 ```bash
-# Required — your Solana wallet private key (base58)
+# Optional — your Solana wallet private key (base58).
+# Needed only for PAID requests: free models and the 2 free trials work without it.
 BRIDGENODE_WALLET_KEY=***
 # Optional:
 # BRIDGENODE_BASE_URL=https://bridgenode.cc/v1
@@ -59,7 +75,8 @@ client.chat(model, messages, { maxTokens?, mode? });  // mode: "auto" | "eco" | 
 ## Requirements
 
 - Node ≥ 20
-- Solana wallet with USDC ATA (rent — agent's responsibility)
+- Solana wallet with USDC ATA (rent — agent's responsibility) — only for PAID
+  requests; free models and the free trials need no wallet
 
 ## Python SDK
 

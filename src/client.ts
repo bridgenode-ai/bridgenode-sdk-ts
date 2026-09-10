@@ -160,16 +160,23 @@ export class LLMClient {
   readonly initialTimeoutMs: number;
   readonly retryTimeoutMs: number;
   readonly flowTimeoutMs: number;
-  readonly walletAddress: string;
+  walletAddress: string;
   readonly maxPerCall: number;
   readonly dailyCap: number;
 
   /** Last verified receipt (PAYMENT-RESPONSE) — for introspection */
   lastReceipt: Record<string, unknown> | null = null;
 
+  /**
+   * Free-trial state from the last response headers (audit.md step 4) — how
+   * many free calls are left before the wall, visible without parsing prose.
+   */
+  lastTrialsRemaining: number | null = null;
+  lastTrialKind: string | null = null;
+
   private readonly walletKey: string;
   private readonly rpcUrl?: string;
-  private readonly secretKey: Uint8Array;
+  private secretKey: Uint8Array | null;
   private x402: x402Client | null = null;
   private httpHelper: x402HTTPClient | null = null;
   private dailySpend: Record<string, number> = {};
@@ -211,11 +218,11 @@ export class LLMClient {
       dotenv.config();
     }
 
+    // The key is OPTIONAL (audit.md step 4): free models and the two free
+    // trials on paid models run without payment, so an agent can try real
+    // inference before it owns a wallet. A key is needed only when a request
+    // actually reaches the payment wall (_ensurePaymentClient).
     this.walletKey = process.env.BRIDGENODE_WALLET_KEY ?? "";
-    if (!this.walletKey) {
-      throw new BridgenodeError(
-        "BRIDGENODE_WALLET_KEY missing — set it in .env (your Solana wallet private key, base58)");
-    }
 
     this.baseUrl = (options.baseUrl ?? process.env.BRIDGENODE_BASE_URL ?? BRIDGENODE_BASE_URL)
       .replace(/\/+$/, "");
@@ -230,9 +237,13 @@ export class LLMClient {
     this.dailyCap = options.dailyCapUsd ?? parseFloat(
       process.env.BRIDGENODE_DAILY_CAP ?? String(DEFAULT_DAILY_CAP_USD));
 
-    // Wallet address — from the private key (base58 → 64 bytes → keypair signer)
-    this.secretKey = new Uint8Array(getBase58Encoder().encode(this.walletKey));
-    this.walletAddress = ""; // filled in _ensureInit() (signer creation is async)
+    // Wallet address — from the private key (base58 → 64 bytes → keypair
+    // signer); created lazily in _ensurePaymentClient() (signer creation is
+    // async and only a payment needs it)
+    this.secretKey = this.walletKey
+      ? new Uint8Array(getBase58Encoder().encode(this.walletKey))
+      : null;
+    this.walletAddress = "";
   }
 
   // ── API ────────────────────────────────────────────────────────────────
@@ -243,7 +254,6 @@ export class LLMClient {
    */
   async chat(model: string | null, messages: string | Array<Record<string, unknown>>,
              options: ChatOptions = {}): Promise<Record<string, unknown> | AsyncGenerator<Record<string, unknown>, void, unknown>> {
-    await this._ensureInit();
     // string prompt → OpenAI messages format
     // (client side; the server still receives an OpenAI body)
     const normalizedMessages: Array<Record<string, unknown>> =
@@ -318,6 +328,10 @@ export class LLMClient {
     let paymentAmountUsd: number | null = null;
 
     if (resp.status === 402) {
+      // No wallet → free models / trials only: one clear sentence beats a
+      // handshake that cannot finish (audit.md step 4). Raised BEFORE any
+      // signing attempt.
+      await this._ensurePaymentClient();
       const helper = this.httpHelper!;
       const getHeader = (name: string): string | null => resp.headers.get(name);
       const paymentRequired = helper.getPaymentRequiredResponse(
@@ -416,6 +430,10 @@ export class LLMClient {
       } catch { /* body not JSON */ }
       throw new BridgenodeError(message, resp.status, code);
     }
+
+    // Free-trial state (audit.md step 4): visible before the wall, without
+    // parsing prose. No wallet involved.
+    this._readTrialHeaders(resp);
 
     // step 2: receipt verification after 200 (error, not silence — Free-Riding
     // protection); spend recorded ONLY after a successful 200 (like the
@@ -543,6 +561,21 @@ export class LLMClient {
 
   // ── Receipt verification (step 2) ──────────────────────────────────────────
 
+  /**
+   * Free-trial state from the response headers (server: audit.md step 2).
+   *
+   * `X-Bridgenode-Free-Trial` / `X-Bridgenode-Free-Trials-Remaining` — how
+   * many free calls are left before the payment wall, machine-readable.
+   */
+  private _readTrialHeaders(resp: Response): void {
+    const kind = resp.headers.get("X-Bridgenode-Free-Trial");
+    const remaining = resp.headers.get("X-Bridgenode-Free-Trials-Remaining");
+    if (kind === null && remaining === null) return;
+    this.lastTrialKind = kind;
+    const parsed = remaining === null ? NaN : Number(remaining);
+    this.lastTrialsRemaining = Number.isFinite(parsed) ? parsed : null;
+  }
+
   private async _verifyReceipt(
     paymentPayload: PaymentPayloadShape,
     resp: Response,
@@ -620,8 +653,20 @@ export class LLMClient {
 
   // ── Setup (lazy, async — createKeyPairSignerFromBytes) ─────────────────
 
-  private async _ensureInit(): Promise<void> {
+  /**
+   * Payment client — created ON FIRST PAYMENT ONLY (free models and free
+   * trials need no wallet). Without a key the agent gets ONE actionable
+   * sentence instead of a crash or a half-finished handshake.
+   */
+  private async _ensurePaymentClient(): Promise<void> {
     if (this.x402) return;
+    if (!this.secretKey || !this.walletKey) {
+      throw new BridgenodeError(
+        "This request needs payment (free models and the free trials are used " +
+        "up). Set BRIDGENODE_WALLET_KEY in .env — your Solana wallet private " +
+        `key (base58) — or call a free model: see ${this.baseUrl}/models for ` +
+        "models marked free.");
+    }
     const signer = await createKeyPairSignerFromBytes(this.secretKey);
     (this as { walletAddress: string }).walletAddress = signer.address;
     const scheme = new ExactSvmScheme(signer, this.rpcUrl ? { rpcUrl: this.rpcUrl } : undefined);
