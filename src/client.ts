@@ -170,9 +170,9 @@ export class LLMClient {
   /**
    * Free-trial state from the last response headers (audit.md step 4) — how
    * many free calls are left before the wall, visible without parsing prose.
+   * `null` = the response was not a free trial; a number = trials left.
    */
   lastTrialsRemaining: number | null = null;
-  lastTrialKind: string | null = null;
 
   private readonly walletKey: string;
   private readonly rpcUrl?: string;
@@ -564,14 +564,11 @@ export class LLMClient {
   /**
    * Free-trial state from the response headers (server: audit.md step 2).
    *
-   * `X-Bridgenode-Free-Trial` / `X-Bridgenode-Free-Trials-Remaining` — how
-   * many free calls are left before the payment wall, machine-readable.
+   * `X-Bridgenode-Free-Trials-Remaining` — how many free calls are left
+   * before the payment wall, machine-readable.
    */
   private _readTrialHeaders(resp: Response): void {
-    const kind = resp.headers.get("X-Bridgenode-Free-Trial");
     const remaining = resp.headers.get("X-Bridgenode-Free-Trials-Remaining");
-    if (kind === null && remaining === null) return;
-    this.lastTrialKind = kind;
     const parsed = remaining === null ? NaN : Number(remaining);
     this.lastTrialsRemaining = Number.isFinite(parsed) ? parsed : null;
   }

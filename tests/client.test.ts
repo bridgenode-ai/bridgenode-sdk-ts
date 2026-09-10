@@ -848,7 +848,7 @@ test("missing key → free path works without a wallet", async () => {
       status: 200,
       headers: {
         "Content-Type": "application/json",
-        "X-Bridgenode-Free-Trial": "trial",
+        "X-Bridgenode-Free-Trial": "1",
         "X-Bridgenode-Free-Trials-Remaining": "1",
       },
     });
@@ -862,7 +862,6 @@ test("missing key → free path works without a wallet", async () => {
     assert.ok(resp["choices"], "free inference must return the response");
     // free-trial state is visible without parsing prose
     assert.equal(client.lastTrialsRemaining, 1);
-    assert.equal(client.lastTrialKind, "trial");
     assert.deepEqual(seen, [{ hasPayment: false }], "no payment attempted");
   } finally {
     globalThis.fetch = originalFetch;

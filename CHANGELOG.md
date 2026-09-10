@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/bridgenode-ai/bridgenode-llm/compare/llm-v1.2.0...llm-v1.2.1) (2026-09-10)
+
+
+### Bug Fixes
+
+* **sdk:** drop the redundant free-trial "kind" field ([dbcc7af](https://github.com/bridgenode-ai/bridgenode-llm/commit/dbcc7afb6f43513b0d5ae5a6e70394ea11592793))
+
 ## [1.2.0](https://github.com/bridgenode-ai/bridgenode-llm/compare/llm-v1.1.4...llm-v1.2.0) (2026-09-10)
 
 
