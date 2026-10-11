@@ -13,4 +13,4 @@ export {
   LLMClient,
 } from "./client.js";
 
-export type { ChatOptions, LLMClientOptions } from "./client.js";
+export type { ChatOptions, ChatTool, ToolChoice, LLMClientOptions } from "./client.js";

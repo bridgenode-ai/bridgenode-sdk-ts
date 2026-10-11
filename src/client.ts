@@ -108,7 +108,21 @@ export interface ChatOptions {
   maxTokens?: number;
   mode?: "auto" | "eco" | "premium";
   stream?: boolean;  // SSE stream — returns AsyncGenerator of chunks
+  /**
+   * Agent tool definitions (OpenAI format) — forwarded to the server as-is.
+   * The tool schema counts as INPUT tokens, so it raises the price and does
+   * not fit the free trial budget on large tool sets.
+   */
+  tools?: ChatTool[];
+  /** Tool selection policy — forwarded as-is (e.g. "auto", "none", "required"). */
+  toolChoice?: ToolChoice;
 }
+
+/** OpenAI-format tool definition (function schema), forwarded unchanged. */
+export type ChatTool = Record<string, unknown>;
+
+/** `tool_choice` value: a policy keyword or a forced-function object. */
+export type ToolChoice = "auto" | "none" | "required" | Record<string, unknown>;
 
 /**
  * Options for configuring an {@link LLMClient}.
@@ -251,6 +265,19 @@ export class LLMClient {
   /**
    * Send a chat completion request. Returns the full response object, or an
    * `AsyncGenerator` of chunks when `stream` is enabled.
+   *
+   * Tool calling (`options.tools` / `options.toolChoice`): the definitions are
+   * forwarded in every request of the handshake — the body is built ONCE,
+   * because the server binds the payment challenge to the request body and
+   * rejects a body changed between the challenge and the paid retry.
+   *
+   * When the model calls a tool, the response is returned untouched:
+   * `choices[0].message.tool_calls` with `content: null` and
+   * `finish_reason: "tool_calls"`. Run the tool yourself and send the result
+   * back in the next call as a `{ role: "tool", tool_call_id, content }`
+   * message (plus the assistant message carrying the `tool_calls`), and repeat
+   * until `finish_reason` is not `"tool_calls"`. Every round is its own paid
+   * request.
    */
   async chat(model: string | null, messages: string | Array<Record<string, unknown>>,
              options: ChatOptions = {}): Promise<Record<string, unknown> | AsyncGenerator<Record<string, unknown>, void, unknown>> {
@@ -269,6 +296,11 @@ export class LLMClient {
     if (options.maxTokens !== undefined) body["max_tokens"] = options.maxTokens;
     if (options.mode !== undefined) body["mode"] = options.mode;
     if (options.stream) body["stream"] = true;  // SSE stream
+    // Agent tool calling: forwarded as-is on EVERY request of the handshake
+    // (the body is built once — the server binds the challenge to the body
+    // hash, so it must not change between 402 and the paid retry).
+    if (options.tools !== undefined) body["tools"] = options.tools;
+    if (options.toolChoice !== undefined) body["tool_choice"] = options.toolChoice;
     const json = JSON.stringify(body);
 
     // Total flow timeout — the whole handshake (initial + SIWX +

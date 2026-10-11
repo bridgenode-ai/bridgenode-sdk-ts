@@ -934,3 +934,113 @@ test("BRIDGENODE_BASE_URL from env (configurable)", async () => {
     else delete process.env.BRIDGENODE_BASE_URL;
   }
 });
+
+// ── Tool calling (agent round) ───────────────────────────────────────────────
+
+const TOOLS = [{
+  type: "function",
+  function: {
+    name: "get_weather",
+    description: "Current weather for a city",
+    parameters: {
+      type: "object",
+      properties: { city: { type: "string" } },
+      required: ["city"],
+    },
+  },
+}];
+
+function toolCallResponse(): Record<string, unknown> {
+  return {
+    id: "cmpl-tool-1",
+    object: "chat.completion",
+    created: 1,
+    model: "gpt-oss-120b",
+    choices: [{
+      index: 0,
+      message: {
+        role: "assistant",
+        content: null,
+        tool_calls: [{
+          id: "call_1",
+          type: "function",
+          function: { name: "get_weather", arguments: '{"city":"Vilnius"}' },
+        }],
+      },
+      finish_reason: "tool_calls",
+    }],
+    usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+  };
+}
+
+test("tools/toolChoice forwarded on both requests (same body)", async () => {
+  const feeKp = await crypto.subtle.generateKey(
+    { name: "Ed25519" }, true, ["sign", "verify"]);
+  const clientKp = await makeKeypair();
+  const { handler, seen } = makeServer(feeKp.privateKey, clientKp.address);
+  globalThis.fetch = handler as typeof fetch;
+
+  const client = new LLMClient({ baseUrl: API_BASE, rpcUrl: RPC_URL });
+  await client.chat("gpt-oss-120b", [{ role: "user", content: "Weather?" }],
+                    { tools: TOOLS, toolChoice: "auto" });
+
+  // The server binds the challenge to the request body hash — the tools must
+  // travel in the FIRST request, and the paid retry repeats the same body.
+  const apiSeen = seen.filter((r) => r.url.startsWith(API_BASE));
+  assert.equal(apiSeen.length, 2);
+  assert.equal(apiSeen[0].hasPayment, false);
+  const first = apiSeen[0].body as Record<string, unknown>;
+  assert.deepEqual(first.tools, TOOLS);
+  assert.equal(first.tool_choice, "auto");
+  assert.deepEqual(apiSeen[1].body, first);
+});
+
+test("no tools → no tools field in the body (not tools: undefined)", async () => {
+  const feeKp = await crypto.subtle.generateKey(
+    { name: "Ed25519" }, true, ["sign", "verify"]);
+  const clientKp = await makeKeypair();
+  const { handler, seen } = makeServer(feeKp.privateKey, clientKp.address);
+  globalThis.fetch = handler as typeof fetch;
+
+  const client = new LLMClient({ baseUrl: API_BASE, rpcUrl: RPC_URL });
+  await client.chat("gpt-oss-120b", "hi");
+
+  const body = seen.filter((r) => r.url.startsWith(API_BASE))[0]
+    .body as Record<string, unknown>;
+  assert.equal("tools" in body, false);
+  assert.equal("tool_choice" in body, false);
+});
+
+test("tool_calls response returned unchanged (content null)", async () => {
+  const expected = toolCallResponse();
+  const seen: Array<Record<string, unknown>> = [];
+  globalThis.fetch = (async (_url: string, init?: RequestInit) => {
+    seen.push(JSON.parse(String(init?.body)));
+    return new Response(JSON.stringify(expected), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  await makeKeypair();
+  const client = new LLMClient({ baseUrl: API_BASE, rpcUrl: RPC_URL });
+  const resp = await client.chat("gpt-oss-120b",
+                                 [{ role: "user", content: "Weather?" }],
+                                 { tools: TOOLS });
+
+  assert.deepEqual(resp, expected);
+  const message = (resp.choices as Array<Record<string, unknown>>)[0]
+    .message as Record<string, unknown>;
+  assert.equal(message.content, null);
+  assert.equal((resp.choices as Array<Record<string, unknown>>)[0].finish_reason,
+               "tool_calls");
+  // round ② input: assistant tool_calls + role:"tool" result travel as-is
+  const messages = [
+    { role: "user", content: "Weather?" },
+    { role: "assistant", content: null, tool_calls: message.tool_calls },
+    { role: "tool", tool_call_id: "call_1", content: '{"temp_c":7}' },
+  ];
+  await client.chat("gpt-oss-120b", messages, { tools: TOOLS });
+  assert.deepEqual(seen[1].messages, messages);
+  assert.deepEqual(seen[1].tools, TOOLS);
+});

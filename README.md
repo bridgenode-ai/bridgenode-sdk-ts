@@ -48,6 +48,50 @@ await client.chat("gpt-oss-120b", [{ role: "user", content: "hi" }]);
 console.log(client.lastTrialsRemaining);   // null for free models, 1 → 0 for trials
 ```
 
+### Tool calling
+
+Send your own tool definitions (OpenAI format) and run the agent loop
+yourself — `tools`/`toolChoice` travel in every request of the handshake and the
+provider answer is returned untouched:
+
+```ts
+const tools = [{
+  type: "function",
+  function: {
+    name: "get_weather",
+    description: "Current weather for a city",
+    parameters: { type: "object",
+                  properties: { city: { type: "string" } },
+                  required: ["city"] },
+  },
+}];
+
+const messages: Array<Record<string, unknown>> = [
+  { role: "user", content: "What is the weather in Vilnius?" }];
+for (;;) {
+  const resp = await client.chat("gpt-oss-120b", messages, { tools }) as Record<string, any>;
+  const message = resp.choices[0].message;
+  messages.push(message);
+  if (!message.tool_calls) {
+    console.log(message.content);
+    break;
+  }
+  for (const call of message.tool_calls) {
+    // run your own tool here (call.function.arguments is a JSON string)
+    messages.push({ role: "tool", tool_call_id: call.id,
+                    content: '{"temp_c": 7}' });
+  }
+}
+```
+
+Notes:
+- The tool-calling answer has `content: null`, `finish_reason: "tool_calls"`
+  and `message.tool_calls` — that is normal, not an error.
+- **Every round is its own paid request** (one x402 payment per call).
+- The tool schema counts as **input tokens**: it raises the price, and large
+  tool sets do not fit the free trial budget (8 000 tokens on the free models).
+- Only models marked `"tools": true` in `GET /v1/models` support this.
+
 ## .env
 
 ```bash
@@ -69,7 +113,8 @@ BRIDGENODE_WALLET_KEY=***
 ## API
 
 ```ts
-client.chat(model, messages, { maxTokens?, mode? });  // mode: "auto" | "eco" | "premium"
+client.chat(model, messages, { maxTokens?, mode?, tools?, toolChoice? });
+// mode: "auto" | "eco" | "premium"
 ```
 
 ## Requirements
